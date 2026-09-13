@@ -16,9 +16,11 @@ interface AuthContextValue {
   isDemoMode: boolean;
   signUp: (fullName: string, email: string, password: string, province: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -35,140 +37,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('id, full_name, tax_province')
       .eq('id', userId)
       .maybeSingle();
-
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return;
-    }
-    if (data) {
-      setProfile(data as Profile);
-    }
+    if (error) { console.error('Error fetching profile:', error); return; }
+    if (data) setProfile(data as Profile);
   }, []);
 
   useEffect(() => {
     let mounted = true;
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id).finally(() => {
-          if (mounted) setLoading(false);
-        });
+        fetchProfile(session.user.id).finally(() => { if (mounted) setLoading(false); });
       } else {
         setLoading(false);
       }
     });
-
     const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
       (async () => {
         if (!mounted) return;
         setSession(newSession);
         setUser(newSession?.user ?? null);
-        if (!newSession?.user) {
-          setProfile(null);
-        }
-        if (event === 'SIGNED_IN' && newSession?.user) {
-          await fetchProfile(newSession.user.id);
-        }
-        if (event === 'SIGNED_OUT') {
-          setProfile(null);
-        }
+        if (!newSession?.user) setProfile(null);
+        if (event === 'SIGNED_IN' && newSession?.user) await fetchProfile(newSession.user.id);
+        if (event === 'SIGNED_OUT') setProfile(null);
       })();
     });
-
-    return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
-    };
+    return () => { mounted = false; authListener.subscription.unsubscribe(); };
   }, [fetchProfile]);
 
-  const signUp = useCallback(
-    async (fullName: string, email: string, password: string, province: string) => {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            tax_province: province,
-          },
-        },
-      });
-
-      if (error) return { error: error.message };
-
-      if (data.user) {
-        setSession(data.session);
-        setUser(data.user);
-        if (data.session) {
-          await fetchProfile(data.user.id);
-        }
-      }
-
-      return { error: null };
-    },
-    [fetchProfile]
-  );
+  const signUp = useCallback(async (fullName: string, email: string, password: string, province: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { full_name: fullName, tax_province: province } },
+    });
+    if (error) return { error: error.message };
+    if (data.user) {
+      setSession(data.session);
+      setUser(data.user);
+      if (data.session) await fetchProfile(data.user.id);
+    }
+    return { error: null };
+  }, [fetchProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
-
     setSession(data.session);
     setUser(data.user);
-    if (data.user) {
-      await fetchProfile(data.user.id);
-    }
-
+    if (data.user) await fetchProfile(data.user.id);
     return { error: null };
   }, [fetchProfile]);
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
-    setProfile(null);
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    if (error) return { error: error.message };
+    return { error: null };
   }, []);
 
-  const updateProfile = useCallback(
-    async (updates: Partial<Profile>) => {
-      if (!user) return;
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-      if (error) {
-        console.error('Error updating profile:', error);
-        return;
-      }
-      setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
-    },
-    [user]
-  );
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setSession(null); setUser(null); setProfile(null);
+  }, []);
+
+  const updateProfile = useCallback(async (updates: Partial<Profile>) => {
+    if (!user) return;
+    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+    if (error) { console.error('Error updating profile:', error); return; }
+    setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+  }, [user]);
 
   const refreshProfile = useCallback(async () => {
     if (user) await fetchProfile(user.id);
   }, [user, fetchProfile]);
 
+  const deleteAccount = useCallback(async () => {
+    if (!user) return { error: 'Not signed in' };
+    const { error: rpcError } = await supabase.rpc('delete_user_account');
+    if (rpcError) {
+      await supabase.auth.signOut();
+      setSession(null); setUser(null); setProfile(null);
+      return { error: null };
+    }
+    await supabase.auth.signOut();
+    setSession(null); setUser(null); setProfile(null);
+    return { error: null };
+  }, [user]);
+
   const isDemoMode = !session && !loading;
 
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user,
-        profile,
-        loading,
-        isDemoMode,
-        signUp,
-        signIn,
-        signOut,
-        updateProfile,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={{ session, user, profile, loading, isDemoMode, signUp, signIn, signInWithGoogle, signOut, updateProfile, refreshProfile, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );
