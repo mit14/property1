@@ -8,9 +8,9 @@
     line-height: 1.5;
     font-weight: 400;
 
-    color-scheme: light;
-    color: #1e293b;
-    background-color: #f8fafc;
+    color-scheme: dark;
+    color: #e2e8f0;
+    background-color: #0a0b0f;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -21,13 +21,14 @@
   body {
     margin: 0;
     min-height: 100vh;
-    background-color: #f8fafc;
+    background-color: #0a0b0f;
   }
 
   #root {
-    max-width: 1280px;
+    max-width: 480px;
     margin: 0 auto;
     padding: 0;
+    min-height: 100vh;
   }
 
   .font-mono {
@@ -38,26 +39,26 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 215 25% 27%;
-    --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --background: 240 6% 7%;
+    --foreground: 210 20% 92%;
+    --card: 240 6% 10%;
+    --card-foreground: 210 20% 92%;
+    --popover: 240 6% 10%;
+    --popover-foreground: 210 20% 92%;
     --primary: 160 95% 39%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 215 25% 27%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --secondary: 240 6% 14%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 240 6% 14%;
+    --muted-foreground: 215 15% 50%;
     --accent: 160 95% 39%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --border: 240 6% 16%;
+    --input: 240 6% 16%;
     --ring: 160 95% 39%;
-    --radius: 0.75rem;
+    --radius: 0.875rem;
   }
 }
 
@@ -94,4 +95,22 @@
 }
 .animate-slide-up {
   animation: slideUp 0.4s ease-out;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scaleIn 0.25s ease-out;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
 }
